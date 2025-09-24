@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Team Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .dashboard-header {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: none;
+            margin-bottom: 2rem;
+        }
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            font-weight: bold;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 1rem 0;
+        }
+        .search-container {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .error {
+            display: none;
+            color: #dc3545;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .team-info {
+            background: #e9ecef;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <h1><i class="fas fa-futbol"></i> Football Team Dashboard</h1>
+                    <p class="lead">Analyze team performance and track goals over time</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Search Section -->
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="search-container">
+                    <h3 class="text-center mb-4">Team Analysis</h3>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <input type="text" 
+                                   id="teamSearch" 
+                                   class="form-control form-control-lg" 
+                                   placeholder="Enter team name (e.g., Manchester United, Barcelona)..."
+                                   autocomplete="off">
+                        </div>
+                        <div class="col-md-4">
+                            <button id="searchBtn" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-search"></i> Analyze Team
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading" id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading team data...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div class="error" id="error"></div>
+
+        <!-- Team Information -->
+        <div id="teamInfo" style="display: none;">
+            <div class="team-info">
+                <h4 id="teamName"></h4>
+                <p id="teamStats"></p>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="row" id="chartSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Goals Scored vs Conceded Over Time</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="goalsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row" id="statsSection" style="display: none;">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="totalMatches" class="text-primary">-</h3>
+                        <p class="card-text">Total Matches</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="totalScored" class="text-success">-</h3>
+                        <p class="card-text">Goals Scored</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="totalConceded" class="text-danger">-</h3>
+                        <p class="card-text">Goals Conceded</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="goalDifference" class="text-info">-</h3>
+                        <p class="card-text">Goal Difference</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Font Awesome for icons -->
+    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
+    
+    <script>
+        let chart = null;
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('teamSearch');
+            const searchBtn = document.getElementById('searchBtn');
+
+            searchBtn.addEventListener('click', searchTeam);
+            
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchTeam();
+                }
+            });
+
+            // Load example team on page load
+            loadTeamData('Arsenal');
+        });
+
+        function searchTeam() {
+            const teamName = document.getElementById('teamSearch').value.trim();
+            if (teamName) {
+                loadTeamData(teamName);
+            }
+        }
+
+        function loadTeamData(teamName) {
+            showLoading(true);
+            hideError();
+            hideCharts();
+
+            fetch(`/team/${encodeURIComponent(teamName)}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    displayTeamData(data);
+                })
+                .catch(error => {
+                    showError(error.message);
+                })
+                .finally(() => {
+                    showLoading(false);
+                });
+        }
+
+        function displayTeamData(data) {
+            // Update team info
+            document.getElementById('teamName').textContent = data.team;
+            document.getElementById('teamStats').textContent = 
+                `${data.total_matches} matches analyzed`;
+
+            // Update statistics cards
+            const totalScored = data.goals_scored.reduce((a, b) => a + b, 0);
+            const totalConceded = data.goals_conceded.reduce((a, b) => a + b, 0);
+            
+            document.getElementById('totalMatches').textContent = data.total_matches;
+            document.getElementById('totalScored').textContent = totalScored;
+            document.getElementById('totalConceded').textContent = totalConceded;
+            document.getElementById('goalDifference').textContent = totalScored - totalConceded;
+
+            // Create chart
+            createChart(data);
+
+            // Show sections
+            document.getElementById('teamInfo').style.display = 'block';
+            document.getElementById('chartSection').style.display = 'block';
+            document.getElementById('statsSection').style.display = 'block';
+        }
+
+        function createChart(data) {
+            const ctx = document.getElementById('goalsChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates.map(date => {
+                        return new Date(date).toLocaleDateString();
+                    }),
+                    datasets: [{
+                        label: 'Goals Scored',
+                        data: data.goals_scored,
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Goals Conceded',
+                        data: data.goals_conceded,
+                        borderColor: '#dc3545',
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${data.team} - Goals Analysis`,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Goals'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Match Date'
+                            }
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                    },
+                    hover: {
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideCharts() {
+            document.getElementById('teamInfo').style.display = 'none';
+            document.getElementById('chartSection').style.display = 'none';
+            document.getElementById('statsSection').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
