@@ -36,6 +36,16 @@
             <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Goals Histogram</h5></div><div class="card-body chart-container"><canvas id="goalsHistChart"></canvas></div></div></div>
             <div class="col-md-8 mb-4"><div class="card"><div class="card-header"><h5>Matplotlib Form PNG</h5></div><div class="card-body text-center"><img id="mplImage" alt="Form plot" style="max-width:100%;height:auto"/></div></div></div>
         </div>
+
+        <div class="row" id="pandasMplSection" style="display:none;">
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Univariate: Goals Histogram</h5></div><div class="card-body text-center"><img id="imgHistGoals" alt="Goals Histogram" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Univariate: GD KDE</h5></div><div class="card-body text-center"><img id="imgKdeGd" alt="GD KDE" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Univariate: Points Boxplot</h5></div><div class="card-body text-center"><img id="imgBoxPoints" alt="Points Box" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Bivariate: Scored vs Conceded</h5></div><div class="card-body text-center"><img id="imgScatterSC" alt="Scatter" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Bivariate: Hexbin Density</h5></div><div class="card-body text-center"><img id="imgHexbinSC" alt="Hexbin" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-4 mb-4"><div class="card"><div class="card-header"><h5>Bivariate: Goals by Venue</h5></div><div class="card-body text-center"><img id="imgBoxVenue" alt="Box by Venue" style="max-width:100%;height:auto"/></div></div></div>
+            <div class="col-md-6 mb-4"><div class="card"><div class="card-header"><h5>Multivariate: Correlation Heatmap</h5></div><div class="card-body text-center"><img id="imgCorr" alt="Correlation Heatmap" style="max-width:100%;height:auto"/></div></div></div>
+        </div>
         <div class="row" id="h2hSection" style="display: none;"><div class="col-12"><div class="card"><div class="card-header"><h5 class="mb-0">Head-to-Head Results</h5></div><div class="card-body text-center" style="height:400px;"><canvas id="h2hChart"></canvas></div></div></div></div>
         <div class="row" id="leagueTableSection" style="display: none;"><div class="col-12"><div class="card"><div class="card-header"><h5 class="mb-0">League Standings</h5></div><div class="card-body"><div class="table-responsive"><table class="table table-striped table-hover"><thead class="table-light"><tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody id="leagueTableBody"></tbody></table></div></div></div></div></div>
     </div>
@@ -92,6 +102,16 @@
                         createH2HChart(data);
                     }).catch(err => showError({ message: `H2H Error: ${err.message}` }));
             }
+
+            // Show Pandas/Matplotlib PNG visuals
+            document.getElementById('pandasMplSection').style.display = 'flex';
+            document.getElementById('imgHistGoals').src = `/api/mpl/hist-goals/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgKdeGd').src = `/api/mpl/kde-gd/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgBoxPoints').src = `/api/mpl/box-points/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgScatterSC').src = `/api/mpl/scatter-scored-conceded/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgHexbinSC').src = `/api/mpl/hexbin-scored-conceded/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgBoxVenue').src = `/api/mpl/box-goals-by-venue/${encodeURIComponent(team1)}/${baseTeamUrl}`;
+            document.getElementById('imgCorr').src = `/api/mpl/corr-heatmap/${encodeURIComponent(team1)}/${baseTeamUrl}`;
         }
 
         function showLeagueTable() {

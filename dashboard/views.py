@@ -189,3 +189,125 @@ def api_matplotlib_form_image(request, team_name):
     plt.close(fig)
     buf.seek(0)
     return HttpResponse(buf.getvalue(), content_type='image/png')
+
+# ---------- Pandas/Matplotlib helpers and endpoints ----------
+def _team_matches_dataframe(team_name: str, season: str) -> pd.DataFrame:
+    qs = Match.objects.filter(Q(home_team=team_name) | Q(away_team=team_name), season=season).order_by('date')
+    rows = []
+    for m in qs:
+        is_home = m.home_team == team_name
+        gf = m.home_goals if is_home else m.away_goals
+        ga = m.away_goals if is_home else m.home_goals
+        if m.result == 'D': pts = 1
+        elif (is_home and m.result == 'H') or ((not is_home) and m.result == 'A'): pts = 3
+        else: pts = 0
+        rows.append({
+            'date': m.date,
+            'venue': 'Home' if is_home else 'Away',
+            'goals_for': gf,
+            'goals_against': ga,
+            'gd': gf - ga,
+            'points': pts,
+        })
+    return pd.DataFrame(rows)
+
+def _png_response(figure) -> HttpResponse:
+    buf = BytesIO()
+    plt.tight_layout()
+    figure.savefig(buf, format='png')
+    plt.close(figure)
+    buf.seek(0)
+    return HttpResponse(buf.getvalue(), content_type='image/png')
+
+@require_GET
+def api_mpl_hist_goals(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(6,3.2), dpi=150)
+    df['goals_for'].plot(kind='hist', bins=range(0, int(df['goals_for'].max())+2), color='#0d6efd', edgecolor='white', ax=ax)
+    ax.set_title(f'Goals Scored Histogram - {team_name} ({season})')
+    ax.set_xlabel('Goals For per Match')
+    ax.set_ylabel('Matches')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_kde_gd(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty or df['gd'].nunique() <= 1: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(6,3.2), dpi=150)
+    df['gd'].plot(kind='kde', color='#198754', ax=ax)
+    ax.set_title(f'Goal Difference KDE - {team_name} ({season})')
+    ax.set_xlabel('Goal Difference')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_box_points(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(4,3.2), dpi=150)
+    df['points'].plot(kind='box', ax=ax)
+    ax.set_title(f'Points Distribution - {team_name} ({season})')
+    ax.set_ylabel('Points per Match')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_scatter_scored_conceded(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(6,3.2), dpi=150)
+    df.plot.scatter(x='goals_for', y='goals_against', color='#dc3545', ax=ax)
+    ax.set_title(f'Scored vs Conceded - {team_name} ({season})')
+    ax.set_xlabel('Goals For')
+    ax.set_ylabel('Goals Against')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_hexbin_scored_conceded(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(6,3.2), dpi=150)
+    df.plot.hexbin(x='goals_for', y='goals_against', gridsize=15, cmap='Blues', ax=ax)
+    ax.set_title(f'Density: Scored vs Conceded - {team_name} ({season})')
+    ax.set_xlabel('Goals For')
+    ax.set_ylabel('Goals Against')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_box_goals_by_venue(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    fig, ax = plt.subplots(figsize=(6,3.2), dpi=150)
+    df.boxplot(column='goals_for', by='venue', ax=ax)
+    ax.set_title(f'Goals For by Venue - {team_name} ({season})')
+    ax.set_xlabel('')
+    ax.set_ylabel('Goals For')
+    fig.suptitle('')
+    return _png_response(fig)
+
+@require_GET
+def api_mpl_corr_heatmap(request, team_name):
+    season = request.GET.get('season')
+    if not season: return HttpResponseBadRequest('Season is required.')
+    df = _team_matches_dataframe(team_name, season)
+    if df.empty: return HttpResponse(status=204)
+    cols = ['points','goals_for','goals_against','gd']
+    corr = df[cols].corr()
+    fig, ax = plt.subplots(figsize=(4.5,3.5), dpi=150)
+    cax = ax.imshow(corr, cmap='coolwarm', vmin=-1, vmax=1)
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, rotation=45, ha='right')
+    ax.set_yticks(range(len(cols))); ax.set_yticklabels(cols)
+    ax.set_title(f'Correlation Heatmap - {team_name} ({season})')
+    fig.colorbar(cax, ax=ax, fraction=0.046, pad=0.04)
+    return _png_response(fig)
