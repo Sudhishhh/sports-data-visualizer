@@ -12,7 +12,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--file',
             type=str,
-            default='matches.csv',
+            default='football_matches_2024_2025.csv',
             help='Path to the CSV file containing match data'
         )
         parser.add_argument(
@@ -40,61 +40,77 @@ class Command(BaseCommand):
         try:
             with open(csv_file, 'r', encoding='utf-8') as file:
                 reader = csv.DictReader(file)
-                
+
                 for row in reader:
-                    # Parse date from various possible formats
-                    date_str = row.get('date', '').strip()
-                    if not date_str:
-                        self.stderr.write(f'Skipping row with missing date: {row}')
+                    # Required columns mapping per spec
+                    date_str = (row.get('date_utc') or '').strip()
+                    home_team = (row.get('home_team') or '').strip()
+                    away_team = (row.get('away_team') or '').strip()
+                    season = (row.get('season') or '').strip()
+                    # Normalize common season formats to a consistent form, e.g., 2024-2025
+                    season_norm = season.replace('/', '-').replace('_', '-').replace(' ', '')
+
+                    if not date_str or not home_team or not away_team or not season:
+                        self.stderr.write(f'Skipping incomplete row: {row}')
                         continue
-                    
+
+                    # Parse date_utc. Try ISO first, then common fallbacks
                     try:
-                        # Try common date formats
-                        if '/' in date_str:
-                            date_obj = datetime.strptime(date_str, '%m/%d/%Y').date()
-                        elif '-' in date_str:
-                            if len(date_str.split('-')[0]) == 4:
-                                date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
-                            else:
-                                date_obj = datetime.strptime(date_str, '%d-%m-%Y').date()
-                        else:
-                            raise ValueError('Unknown date format')
+                        # Handle ISO formats with optional timezone, e.g. '2025-01-29 20:00:00+00:00' or '2025-01-29T20:00:00Z'
+                        iso_candidate = date_str.replace('T', ' ').replace('Z', '+00:00')
+                        # datetime.fromisoformat supports '+00:00' offset
+                        date_obj = datetime.fromisoformat(iso_candidate).date()
                     except ValueError:
-                        self.stderr.write(f'Invalid date format in row: {row}')
+                        try:
+                            cleaned = date_str.replace('Z', '').replace('T', ' ')
+                            if '-' in cleaned and ':' in cleaned:
+                                date_obj = datetime.strptime(cleaned, '%Y-%m-%d %H:%M:%S').date()
+                            elif '-' in cleaned:
+                                date_obj = datetime.strptime(cleaned, '%Y-%m-%d').date()
+                            elif '/' in cleaned:
+                                date_obj = datetime.strptime(cleaned, '%m/%d/%Y').date()
+                            else:
+                                date_obj = datetime.strptime(cleaned, '%d-%m-%Y').date()
+                        except ValueError:
+                            self.stderr.write(f'Invalid date format in row: {row}')
+                            continue
+
+                    # Goals from fulltime_home/fulltime_away
+                    try:
+                        home_goals = int(row.get('fulltime_home', 0))
+                        away_goals = int(row.get('fulltime_away', 0))
+                    except ValueError:
+                        self.stderr.write(f'Invalid goal values in row: {row}')
                         continue
-                    
+
                     # Determine result
-                    home_goals = int(row.get('home_goals', 0))
-                    away_goals = int(row.get('away_goals', 0))
-                    
                     if home_goals > away_goals:
                         result = 'H'
                     elif away_goals > home_goals:
                         result = 'A'
                     else:
                         result = 'D'
-                    
+
                     # Create or update match
                     match, created = Match.objects.get_or_create(
                         date=date_obj,
-                        home_team=row.get('home_team', '').strip(),
-                        away_team=row.get('away_team', '').strip(),
+                        home_team=home_team,
+                        away_team=away_team,
                         defaults={
                             'home_goals': home_goals,
                             'away_goals': away_goals,
                             'result': result,
-                            'season': row.get('season', '').strip()
+                            'season': season_norm,
                         }
                     )
-                    
+
                     if created:
                         created_count += 1
                     else:
-                        # Update existing match
                         match.home_goals = home_goals
                         match.away_goals = away_goals
                         match.result = result
-                        match.season = row.get('season', '').strip()
+                        match.season = season_norm
                         match.save()
                         updated_count += 1
                         

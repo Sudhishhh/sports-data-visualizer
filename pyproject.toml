@@ -8,5 +8,8 @@ dependencies = [
     "django>=5.2.6",
     "psycopg2-binary>=2.9.10",
     "python-decouple>=3.8",
-    "requests>=2.32.3",
+    "requests>=2.32.3",  # <-- Add this line
+    "numpy",
+    "pandas",
+    "matplotlib",
 ]
