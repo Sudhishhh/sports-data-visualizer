@@ -78,7 +78,7 @@ WSGI_APPLICATION = 'football_visualizer.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.parse(
-        config('DATABASE_URL')
+        config('DATABASE_URL', default='sqlite:///db.sqlite3')
     )
 }
 
@@ -123,3 +123,6 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Third-party API tokens
+FOOTBALL_DATA_API_TOKEN = config('FOOTBALL_DATA_API_TOKEN', default='')

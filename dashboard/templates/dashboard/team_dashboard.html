@@ -76,17 +76,33 @@
             <div class="col-md-8">
                 <div class="search-container">
                     <h3 class="text-center mb-4">Team Analysis</h3>
-                    <div class="row">
-                        <div class="col-md-8">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">Competition</label>
+                            <select id="competitionSelect" class="form-select form-select-lg">
+                                <option value="PL">Premier League (PL)</option>
+                                <option value="PD">La Liga (PD)</option>
+                                <option value="SA">Serie A (SA)</option>
+                                <option value="BL1">Bundesliga (BL1)</option>
+                                <option value="FL1">Ligue 1 (FL1)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Season</label>
+                            <input type="number" id="seasonInput" class="form-control form-control-lg" value="2024" min="2015" max="2100">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">Team</label>
                             <input type="text" 
                                    id="teamSearch" 
                                    class="form-control form-control-lg" 
-                                   placeholder="Enter team name (e.g., Manchester United, Barcelona)..."
-                                   autocomplete="off">
+                                   placeholder="Start typing or select from list"
+                                   autocomplete="off" list="teamsList">
+                            <datalist id="teamsList"></datalist>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-2">
                             <button id="searchBtn" class="btn btn-primary btn-lg w-100">
-                                <i class="fas fa-search"></i> Analyze Team
+                                <i class="fas fa-search"></i> Analyze
                             </button>
                         </div>
                     </div>
@@ -163,6 +179,82 @@
                     </div>
                 </div>
             </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="points" class="text-warning">-</h3>
+                        <p class="card-text">Points</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="record" class="text-secondary">-</h3>
+                        <p class="card-text">W-D-L</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="cleanSheets" class="text-success">-</h3>
+                        <p class="card-text">Clean Sheets</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <h3 id="averages" class="text-muted">-</h3>
+                        <p class="card-text">Avg GF / GA</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cumulative Points Chart -->
+        <div class="row" id="pointsSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-area"></i> Cumulative Points & Goal Difference</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="pointsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pie/Doughnut Charts -->
+        <div class="row" id="pieSection" style="display: none;">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Result Distribution (W/D/L)</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" style="height:300px;">
+                            <canvas id="resultDoughnut"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Goals Scored vs Conceded</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" style="height:300px;">
+                            <canvas id="goalsPie"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -187,23 +279,31 @@
                 }
             });
 
-            // Load example team on page load
-            loadTeamData('Arsenal');
+            // Populate teams when competition changes
+            document.getElementById('competitionSelect').addEventListener('change', loadTeamsList);
+            loadTeamsList();
         });
 
         function searchTeam() {
             const teamName = document.getElementById('teamSearch').value.trim();
-            if (teamName) {
-                loadTeamData(teamName);
+            const competition = document.getElementById('competitionSelect').value;
+            const season = document.getElementById('seasonInput').value;
+            if (teamName && competition && season) {
+                loadTeamData(teamName, competition, season);
             }
         }
 
-        function loadTeamData(teamName) {
+        function loadTeamData(teamName, competition, season) {
             showLoading(true);
             hideError();
             hideCharts();
 
-            fetch(`/team/${encodeURIComponent(teamName)}/`)
+            const url = new URL(window.location.origin + `/api/team-timeseries/`);
+            url.searchParams.set('team', teamName);
+            url.searchParams.set('competition', competition);
+            url.searchParams.set('season', season);
+
+            fetch(url.toString())
                 .then(response => response.json())
                 .then(data => {
                     if (data.error) {
@@ -233,14 +333,24 @@
             document.getElementById('totalScored').textContent = totalScored;
             document.getElementById('totalConceded').textContent = totalConceded;
             document.getElementById('goalDifference').textContent = totalScored - totalConceded;
+            document.getElementById('points').textContent = data.points ?? '-';
+            document.getElementById('record').textContent = `${data.wins ?? 0}-${data.draws ?? 0}-${data.losses ?? 0}`;
+            document.getElementById('cleanSheets').textContent = data.clean_sheets ?? 0;
+            const avgGF = (data.avg_goals_scored ?? 0).toFixed(2);
+            const avgGA = (data.avg_goals_conceded ?? 0).toFixed(2);
+            document.getElementById('averages').textContent = `${avgGF} / ${avgGA}`;
 
             // Create chart
             createChart(data);
+            createPointsChart(data);
+            createPies(data);
 
             // Show sections
             document.getElementById('teamInfo').style.display = 'block';
             document.getElementById('chartSection').style.display = 'block';
             document.getElementById('statsSection').style.display = 'block';
+            document.getElementById('pointsSection').style.display = 'block';
+            document.getElementById('pieSection').style.display = 'block';
         }
 
         function createChart(data) {
@@ -281,7 +391,7 @@
                     plugins: {
                         title: {
                             display: true,
-                            text: `${data.team} - Goals Analysis`,
+                            text: `${data.team} - ${data.competition} ${data.season} Goals Analysis`,
                             font: {
                                 size: 16,
                                 weight: 'bold'
@@ -314,6 +424,120 @@
                     }
                 }
             });
+        }
+
+        function createPies(data) {
+            const wins = data.wins ?? 0;
+            const draws = data.draws ?? 0;
+            const losses = data.losses ?? 0;
+            const totalScored = (data.goals_scored || []).reduce((a,b) => a+b, 0);
+            const totalConceded = (data.goals_conceded || []).reduce((a,b) => a+b, 0);
+
+            const rdCtx = document.getElementById('resultDoughnut').getContext('2d');
+            new Chart(rdCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Wins', 'Draws', 'Losses'],
+                    datasets: [{
+                        data: [wins, draws, losses],
+                        backgroundColor: ['#198754', '#6c757d', '#dc3545'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            const gpCtx = document.getElementById('goalsPie').getContext('2d');
+            new Chart(gpCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Goals Scored', 'Goals Conceded'],
+                    datasets: [{
+                        data: [totalScored, totalConceded],
+                        backgroundColor: ['#28a745', '#dc3545'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        function createPointsChart(data) {
+            const ctx = document.getElementById('pointsChart').getContext('2d');
+            if (!data.cumulative_points || !data.cumulative_goal_diff) return;
+            const pc = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates.map(date => new Date(date).toLocaleDateString()),
+                    datasets: [
+                        {
+                            label: 'Cumulative Points',
+                            data: data.cumulative_points,
+                            borderColor: '#0d6efd',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Cumulative Goal Difference',
+                            data: data.cumulative_goal_diff,
+                            borderColor: '#6f42c1',
+                            backgroundColor: 'rgba(111, 66, 193, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: {
+                            display: true,
+                            text: `${data.team} - ${data.competition} ${data.season}`
+                        }
+                    },
+                    interaction: { intersect: false },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function loadTeamsList() {
+            const competition = document.getElementById('competitionSelect').value;
+            const season = document.getElementById('seasonInput').value;
+            const dataList = document.getElementById('teamsList');
+            dataList.innerHTML = '';
+            const url = new URL(window.location.origin + `/api/competition/${encodeURIComponent(competition)}/teams/`);
+            if (season) url.searchParams.set('season', season);
+            fetch(url.toString())
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.teams) return;
+                    data.teams.forEach(t => {
+                        const option = document.createElement('option');
+                        option.value = t.name;
+                        dataList.appendChild(option);
+                    });
+                })
+                .catch(() => {});
         }
 
         function showLoading(show) {
